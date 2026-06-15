@@ -1,0 +1,45 @@
+{
+  "name": "sahitya-ghoshclaw",
+  "module": "index.ts",
+  "type": "module",
+  "bin": {
+    "ghoshclaw": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "bun build ./index.ts --target=node --outfile=dist/index.js --minify && bun -e \"const fs = require('fs'); const f = 'dist/index.js'; const c = fs.readFileSync(f, 'utf8'); fs.writeFileSync(f, '#!/usr/bin/env node\\n' + c);\""
+  },
+
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/chalk-animation": "^1.6.3",
+    "@types/node": "^25.9.3"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@clack/core": "^1.4.1",
+    "@clack/prompts": "^1.5.1",
+    "@mendable/firecrawl-js": "^4.23.0",
+    "@openrouter/ai-sdk-provider": "^2.9.0",
+    "@types/marked-terminal": "^6.1.1",
+    "ai": "^6.0.198",
+    "boxen": "^8.0.1",
+    "chalk": "^5.6.2",
+    "chalk-animation": "^2.0.3",
+    "cli-spinners": "^3.4.0",
+    "commander": "^15.0.0",
+    "diff": "^9.0.0",
+    "figlet": "^1.11.0",
+    "gradient-string": "^3.0.0",
+    "marked": "^18.0.3",
+    "marked-terminal": "^7.3.0",
+    "nanospinner": "^1.2.2",
+    "ora": "^9.4.0",
+    "telegraf": "^4.16.3",
+    "@ai-sdk/groq": "^1.1.0",
+    "groq-sdk": "^0.9.0",
+    "@langchain/core": "^0.3.0",
+    "@langchain/langgraph": "^0.0.28"
+  }
+}
