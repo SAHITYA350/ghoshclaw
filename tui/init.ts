@@ -65,6 +65,15 @@ export async function runInitCommand() {
       fs.mkdirSync(configDir, { recursive: true });
     }
     fs.writeFileSync(configPath, envLines.join("\n"), "utf8");
+
+    // Assign in-memory so they are immediately available during this execution
+    process.env.GROQ_API_KEY = (groqKey ?? '').trim();
+    process.env.OPENROUTER_API_KEY = (openrouterKey ?? '').trim();
+    process.env.OPENROUTER_DEFAULT_MODEL = "meta-llama/llama-3.3-70b-instruct";
+    process.env.FIRECRAWL_API_KEY = (firecrawlKey ?? '').trim();
+    process.env.TELEGRAM_BOT_TOKEN = (tgToken ?? '').trim();
+    process.env.TELEGRAM_OWNER_ID = (tgOwnerId ?? '').trim();
+
     console.log(chalk.bold.green(`\n✅ Global configuration saved successfully at:`));
     console.log(chalk.cyan(`   ${configPath}\n`));
   } catch (e: any) {

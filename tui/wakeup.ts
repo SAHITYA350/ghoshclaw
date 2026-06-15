@@ -1,4 +1,4 @@
-import { select, isCancel } from "@clack/prompts";
+import { select, isCancel, confirm } from "@clack/prompts";
 import chalk from "chalk";
 import figlet from "figlet";
 // @ts-ignore
@@ -8,9 +8,52 @@ import { createSpinner } from "nanospinner";
 
 import { runCliMode } from "../modes/cli";
 import { runTelegramMode } from "../modes/telegram";
+import { runInitCommand } from "./init";
 
 // Register the font from the bundled JS module
 figlet.parseFont("ANSI Shadow", ansiShadow);
+
+async function ensureCredentials(): Promise<boolean> {
+  const hasGroq = !!process.env.GROQ_API_KEY;
+  const hasOpenRouter = !!process.env.OPENROUTER_API_KEY;
+  const hasModel = !!process.env.OPENROUTER_DEFAULT_MODEL;
+
+  if (hasGroq && hasOpenRouter && hasModel) {
+    return true;
+  }
+
+  console.log(chalk.bold.yellow("\n⚠️  Missing API Credentials!\n"));
+  console.log(chalk.gray("To use Ghoshclaw, you need to configure your API keys (Groq & OpenRouter)."));
+  console.log(chalk.gray("Currently missing:"));
+  if (!hasGroq) console.log(chalk.red("  • GROQ_API_KEY"));
+  if (!hasOpenRouter) console.log(chalk.red("  • OPENROUTER_API_KEY"));
+  if (!hasModel) console.log(chalk.red("  • OPENROUTER_DEFAULT_MODEL"));
+  console.log();
+
+  const runSetup = await confirm({
+    message: "Would you like to run the onboarding configuration wizard now?",
+    initialValue: true,
+  });
+
+  if (isCancel(runSetup) || !runSetup) {
+    console.log(chalk.red("\nCannot proceed without API credentials. Exiting.\n"));
+    process.exit(1);
+  }
+
+  await runInitCommand();
+  
+  // Re-verify after setup
+  const finalGroq = !!process.env.GROQ_API_KEY;
+  const finalOpenRouter = !!process.env.OPENROUTER_API_KEY;
+  const finalModel = !!process.env.OPENROUTER_DEFAULT_MODEL;
+  
+  if (finalGroq && finalOpenRouter && finalModel) {
+    return true;
+  }
+  
+  console.log(chalk.red("\nCredentials are still missing or invalid. Exiting.\n"));
+  process.exit(1);
+}
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -114,6 +157,8 @@ export async function runWakeup() {
   });
 
   await showIntro();
+
+  await ensureCredentials();
 
   while (true) {
     process.stdin.resume();
