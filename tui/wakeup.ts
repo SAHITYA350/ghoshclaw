@@ -1,11 +1,16 @@
 import { select, isCancel } from "@clack/prompts";
 import chalk from "chalk";
 import figlet from "figlet";
+// @ts-ignore
+import ansiShadow from "figlet/importable-fonts/ANSI Shadow.js";
 import gradient from "gradient-string";
 import { createSpinner } from "nanospinner";
 
 import { runCliMode } from "../modes/cli";
 import { runTelegramMode } from "../modes/telegram";
+
+// Register the font from the bundled JS module
+figlet.parseFont("ANSI Shadow", ansiShadow);
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
