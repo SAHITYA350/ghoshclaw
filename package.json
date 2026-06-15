@@ -1,6 +1,6 @@
 {
   "name": "sahitya-ghoshclaw",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Ghoshclaw AI Development co-pilot OS",
   "author": "Sahitya Ghosh <sahityaghosh350@gmail.com>",
   "license": "MIT",
@@ -22,18 +22,13 @@
     "ghoshclaw": "./dist/index.js"
   },
   "scripts": {
-    "build": "bun build ./index.ts --target=node --outfile=dist/index.js --minify && bun -e \"const fs = require('fs'); const f = 'dist/index.js'; const c = fs.readFileSync(f, 'utf8'); fs.writeFileSync(f, '#!/usr/bin/env node\\n' + c);\""
+    "build": "bun build ./index.ts --target=node --outfile=dist/index.js --minify"
   },
 
   "devDependencies": {
     "@types/bun": "latest",
     "@types/chalk-animation": "^1.6.3",
-    "@types/node": "^25.9.3"
-  },
-  "peerDependencies": {
-    "typescript": "^5"
-  },
-  "dependencies": {
+    "@types/node": "^25.9.3",
     "@clack/core": "^1.4.1",
     "@clack/prompts": "^1.5.1",
     "@mendable/firecrawl-js": "^4.23.0",
@@ -57,5 +52,9 @@
     "groq-sdk": "^0.9.0",
     "@langchain/core": "^0.3.0",
     "@langchain/langgraph": "^0.0.28"
-  }
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {}
 }
