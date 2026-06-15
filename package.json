@@ -1,5 +1,21 @@
 {
   "name": "sahitya-ghoshclaw",
+  "version": "1.0.0",
+  "description": "Ghoshclaw AI Development co-pilot OS",
+  "author": "Sahitya Ghosh <sahityaghosh350@gmail.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SAHITYA350/ghoshclaw.git"
+  },
+  "bugs": {
+    "url": "https://github.com/SAHITYA350/ghoshclaw/issues"
+  },
+  "homepage": "https://github.com/SAHITYA350/ghoshclaw#readme",
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "module": "index.ts",
   "type": "module",
   "bin": {
