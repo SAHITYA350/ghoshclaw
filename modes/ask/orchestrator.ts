@@ -9,6 +9,8 @@ import { defaultAgentConfig } from "../agent/types.ts";
 import { renderTerminalMarkdown } from "../../tui/terminal-md.ts";
 import { runApprovalFlow } from "../agent/approval.ts";
 import { createWebTools } from "../plan/web-tools.ts";
+import { RAGEngine } from "../agent/rag-engine.ts";
+import { createSpinner } from "nanospinner";
 
 function createAskTools(executor: ToolExecutor) {
   return {
@@ -91,6 +93,24 @@ export async function runAskMode() {
   const tracker = new ActionTracker();
   const executor = new ToolExecutor(tracker, config);
 
+  const ragSpinner = createSpinner("Scanning & indexing codebase context...").start();
+  const rag = new RAGEngine();
+  await rag.indexCodebase(config.codebasePath);
+  const semanticSnippets = rag.retrieve(question.trim(), 8);
+  ragSpinner.success({ text: "Codebase context indexed." });
+
+  const systemPrompt = [
+    "You are Ghoshclaw, a private, local AI development co-pilot agent.",
+    "Your goal is to answer the user's questions about their codebase and development tasks.",
+    "Be direct, concise, and helpful. Always identify yourself as Ghoshclaw.",
+    "",
+    "Here is the context retrieved from the user's local codebase:",
+    "--------------------------------------------------",
+    semanticSnippets.join("\n\n"),
+    "--------------------------------------------------",
+    "",
+    "Use the tools provided (read_file, search_files, list_files, analyze_codebase, etc.) if you need to gather additional details to answer the user's question accurately."
+  ].join("\n");
 
   const tools = {
     ...createAskTools(executor),
@@ -101,9 +121,13 @@ export async function runAskMode() {
     model: getAgentModel(),
     stopWhen: stepCountIs(20),
     tools,
+    instructions: systemPrompt,
   });
 
+  const generateSpinner = createSpinner("Ghoshclaw is thinking...").start();
   const result = await agent.generate({ prompt: question.trim() });
+  generateSpinner.success({ text: "Answer ready." });
+
   const answer = result.text?.trim() || "(no answer)";
   console.log("\n" + renderTerminalMarkdown(answer) + "\n");
 
