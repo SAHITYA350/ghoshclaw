@@ -132,7 +132,11 @@ export async function runAgent(ctx: { reply: (t: string, o?: object) => Promise<
   });
 
   const result = await agent.generate({ prompt: goal });
-  if (result.text?.trim()) await replyMd(ctx, result.text.trim());
+  if (result.text?.trim()) {
+    await replyMd(ctx, result.text.trim());
+    const { extractAndExecuteTextualToolCall } = await import("../agent/textual-tool-parser");
+    extractAndExecuteTextualToolCall(result.text, executor, tracker);
+  }
   await finishOrApprove(ctx, chatId, tracker, executor, '✅ Done. No file changes were needed.');
 }
 
@@ -161,7 +165,11 @@ export async function runPlanSteps(
     });
 
     const result = await agent.generate({ prompt });
-    if (result.text?.trim()) await replyMd(ctx, result.text.trim());
+    if (result.text?.trim()) {
+      await replyMd(ctx, result.text.trim());
+      const { extractAndExecuteTextualToolCall } = await import("../agent/textual-tool-parser");
+      extractAndExecuteTextualToolCall(result.text, executor, tracker);
+    }
   }
 
   await finishOrApprove(ctx, chatId, tracker, executor, '✅ All steps done. No file changes needed.');

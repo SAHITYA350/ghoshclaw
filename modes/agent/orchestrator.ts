@@ -74,7 +74,11 @@ export async function runAgentMode() {
     },
   });
 
-  if (result.text?.trim()) console.log(renderTerminalMarkdown(result.text));
+  if (result.text?.trim()) {
+    console.log(renderTerminalMarkdown(result.text));
+    const { extractAndExecuteTextualToolCall } = await import("./textual-tool-parser");
+    extractAndExecuteTextualToolCall(result.text, executor, tracker);
+  }
 
   const ok = await runApprovalFlow(tracker);
 

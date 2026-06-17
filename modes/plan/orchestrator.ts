@@ -99,7 +99,11 @@ export async function runPlanMode(): Promise<void> {
       },
     });
 
-    if(r.text) console.log(renderTerminalMarkdown(r.text))
+    if (r.text) {
+      console.log(renderTerminalMarkdown(r.text));
+      const { extractAndExecuteTextualToolCall } = await import("../agent/textual-tool-parser");
+      extractAndExecuteTextualToolCall(r.text, executor, tracker);
+    }
 
   }
 

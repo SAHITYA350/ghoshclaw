@@ -55,6 +55,34 @@ export class ToolExecutor {
     const abs = path.resolve(this.config.codebasePath, rel);
 
     if (isSystemAccess) {
+      try {
+        const home = homedir();
+        const desktopPath = path.join(home, "Desktop");
+        const desktopOneDrive = path.join(home, "OneDrive", "Desktop");
+        const desktopOneDriveLower = path.join(home, "onedrive", "Desktop");
+        let desktop = desktopPath;
+        if (fs.existsSync(desktopOneDrive)) {
+          desktop = desktopOneDrive;
+        } else if (fs.existsSync(desktopOneDriveLower)) {
+          desktop = desktopOneDriveLower;
+        }
+
+        const parentRel = path.dirname(rel);
+        const parentInCwd = path.resolve(this.config.codebasePath, parentRel);
+        const parentInDesktop = path.resolve(desktop, parentRel);
+        const parentInHome = path.resolve(home, parentRel);
+
+        if (parentRel !== "." && parentRel !== "") {
+          if (!fs.existsSync(parentInCwd) && fs.existsSync(parentInDesktop)) {
+            return path.resolve(desktop, rel);
+          }
+          if (!fs.existsSync(parentInCwd) && fs.existsSync(parentInHome)) {
+            return path.resolve(home, rel);
+          }
+        }
+      } catch (e) {
+        // Fallback to standard CWD path
+      }
       return abs;
     }
 
