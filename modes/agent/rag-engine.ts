@@ -1,6 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import chalk from "chalk";
+import os from "node:os";
+import crypto from "node:crypto";
 
 
 export interface DocumentChunk {
@@ -32,13 +34,22 @@ export class RAGEngine {
   private chunks: DocumentChunk[] = [];
   private fileMetadata: Record<string, { mtime: number; size: number }> = {};
   private docFrequency: Record<string, number> = {};
-  private cachePath = path.resolve(process.cwd(), 'modes/agent/rag-cache.json');
+  private cachePath: string = "";
 
   private stopwords = new Set([
     "the", "a", "an", "and", "or", "but", "if", "then", "else", "for", 
     "while", "const", "let", "var", "function", "import", "from", "export", 
     "class", "return", "this", "new"
   ]);
+
+  private getCachePath(workspacePath: string): string {
+    const configDir = path.join(os.homedir(), ".ghoshclaw");
+    if (!fs.existsSync(configDir)) {
+      fs.mkdirSync(configDir, { recursive: true });
+    }
+    const hash = crypto.createHash("md5").update(workspacePath).digest("hex");
+    return path.join(configDir, `rag-cache-${hash}.json`);
+  }
 
   private tokenize(text: string): Set<string> {
     const rawTokens = text
@@ -71,7 +82,7 @@ export class RAGEngine {
 
   private loadCache(): void {
     try {
-      if (fs.existsSync(this.cachePath)) {
+      if (this.cachePath && fs.existsSync(this.cachePath)) {
         const raw = fs.readFileSync(this.cachePath, 'utf8');
         const data = JSON.parse(raw) as CacheData;
         
@@ -94,6 +105,7 @@ export class RAGEngine {
 
   private saveCache(workspacePath: string): void {
     try {
+      if (!this.cachePath) return;
       const dir = path.dirname(this.cachePath);
       if (!fs.existsSync(dir)) {
         fs.mkdirSync(dir, { recursive: true });
@@ -131,26 +143,70 @@ export class RAGEngine {
   }
 
   async indexCodebase(workspacePath: string): Promise<void> {
+    const resolvedWorkspace = path.resolve(workspacePath);
+    this.cachePath = this.getCachePath(resolvedWorkspace);
+
     const startTime = Date.now();
     this.loadCache();
+
+    // Check if user is running from system root/protected directories
+    const normalized = resolvedWorkspace.toLowerCase();
+    const isSystemDir = 
+      normalized === "c:\\" || 
+      normalized === "c:\\windows" || 
+      normalized === "c:\\windows\\system32" || 
+      normalized === "/" || 
+      normalized === "/etc" || 
+      normalized === "/bin";
+
+    if (isSystemDir) {
+      console.log(
+        chalk.bold.yellow(
+          `\n⚠️  Warning: GhoshClaw is running in a system root directory (${resolvedWorkspace}). Skipping RAG codebase indexing to protect your system.\n`
+        )
+      );
+      this.updateDocFrequencies();
+      return;
+    }
 
     const encounteredFiles = new Set<string>();
     let modifiedFilesCount = 0;
     let cachedFilesCount = 0;
+    let totalFilesScanned = 0;
+    let capWarningShown = false;
 
     const walk = (dir: string) => {
-      const entries = fs.readdirSync(dir, { withFileTypes: true });
+      let entries;
+      try {
+        entries = fs.readdirSync(dir, { withFileTypes: true });
+      } catch (e) {
+        // Soft skip protected/unreadable system directories
+        return;
+      }
+
       for (const ent of entries) {
-        const fullPath = path.join(dir, ent.name);
-        const relPath = path.relative(workspacePath, fullPath).replace(/\\/g, "/");
+        let fullPath;
+        try {
+          fullPath = path.join(dir, ent.name);
+        } catch (e) {
+          continue;
+        }
+
+        const relPath = path.relative(resolvedWorkspace, fullPath).replace(/\\/g, "/");
 
         if (ent.isDirectory()) {
+          // Exclude hidden folders and common directories
           if (
             ent.name === "node_modules" || 
             ent.name === ".git" || 
             ent.name === "dist" ||
             ent.name === "build" ||
-            ent.name === ".next"
+            ent.name === ".next" ||
+            ent.name === ".idea" ||
+            ent.name === ".vscode" ||
+            ent.name === ".github" ||
+            ent.name === "out" ||
+            ent.name.startsWith(".")
           ) {
             continue;
           }
@@ -161,6 +217,19 @@ export class RAGEngine {
             ".ts", ".tsx", ".js", ".jsx", ".json", ".md", ".html", ".css", ".txt"
           ]);
           if (!allowedExts.has(ext)) continue;
+
+          totalFilesScanned++;
+          if (totalFilesScanned > 2000) {
+            if (!capWarningShown) {
+              console.log(
+                chalk.bold.yellow(
+                  "\n⚠️  Warning: Current directory contains over 2000 files. Capping indexer to prevent system freeze.\n"
+                )
+              );
+              capWarningShown = true;
+            }
+            return;
+          }
 
           encounteredFiles.add(relPath);
 
@@ -191,8 +260,8 @@ export class RAGEngine {
       }
     };
 
-    if (fs.existsSync(workspacePath)) {
-      walk(workspacePath);
+    if (fs.existsSync(resolvedWorkspace)) {
+      walk(resolvedWorkspace);
     }
 
     // Handle deleted files
@@ -281,3 +350,32 @@ export class RAGEngine {
     return top;
   }
 }
+
+export async function getCodebaseContext(
+  config: { codebasePath: string },
+  query: string,
+  executor: { analyzeCodebase: (rel: string) => string }
+): Promise<string> {
+  const rag = new RAGEngine();
+  try {
+    await rag.indexCodebase(config.codebasePath);
+    const snippets = rag.retrieve(query, 8);
+    const summary = executor.analyzeCodebase(".");
+    
+    if (snippets.length === 0) {
+      return `Codebase Summary: ${summary}\n\nNo matching files found in context RAG indexing.`;
+    }
+    
+    return [
+      `Codebase Summary: ${summary}`,
+      "",
+      "Relevant code snippets retrieved from the workspace via RAG vector search:",
+      "==================================================",
+      snippets.join("\n\n"),
+      "=================================================="
+    ].join("\n");
+  } catch (e) {
+    return "Failed to analyze codebase context.";
+  }
+}
+

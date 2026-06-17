@@ -177,7 +177,12 @@ export class ToolExecutor {
 
     const lines: string[] = [];
     const walk = (dir: string, prefix: string) => {
-      const entries = fs.readdirSync(dir, { withFileTypes: true });
+      let entries;
+      try {
+        entries = fs.readdirSync(dir, { withFileTypes: true });
+      } catch (e) {
+        return;
+      }
       for (const ent of entries) {
         const full = path.join(dir, ent.name);
         const relP = path.relative(this.config.codebasePath, full);
@@ -227,7 +232,13 @@ export class ToolExecutor {
     const nameRe = regexFromGlob(globPattern.replace(/\\/g, "/"));
 
     const walk = (dir: string) => {
-      for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
+      let entries;
+      try {
+        entries = fs.readdirSync(dir, { withFileTypes: true });
+      } catch (e) {
+        return;
+      }
+      for (const ent of entries) {
         const full = path.join(dir, ent.name);
         const relP = path
           .relative(this.config.codebasePath, full)
@@ -273,7 +284,13 @@ export class ToolExecutor {
     let files = 0;
     let dirs = 0;
     const walk = (dir: string) => {
-      for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
+      let entries;
+      try {
+        entries = fs.readdirSync(dir, { withFileTypes: true });
+      } catch (e) {
+        return;
+      }
+      for (const ent of entries) {
         const full = path.join(dir, ent.name);
         const relP = path.relative(this.config.codebasePath, full);
         if (this.excluded(relP)) continue;
@@ -327,7 +344,13 @@ export class ToolExecutor {
     for (const root of this.skillRoots()) {
       if (!fs.existsSync(root)) continue;
       const walk = (dir: string) => {
-        for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
+        let entries;
+        try {
+          entries = fs.readdirSync(dir, { withFileTypes: true });
+        } catch (e) {
+          return;
+        }
+        for (const ent of entries) {
           const full = path.join(dir, ent.name);
           if (ent.isDirectory()) walk(full);
           else if (ent.name === "SKILL.md") lines.push(full);

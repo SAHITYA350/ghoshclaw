@@ -19,15 +19,27 @@ function readOnlyConfig(): AgentConfig {
   return c;
 }
 
-function agentOptions(config: AgentConfig, maxSteps: number) {
+function agentOptions(config: AgentConfig, maxSteps: number, context?: string) {
+  const instructions = [
+    "You are Ghoshclaw, a private, local AI development co-pilot agent.",
+    "Always identify yourself as Ghoshclaw.",
+    `Workspace root: ${config.codebasePath}`,
+    `OS Environment: ${process.platform === 'win32' ? 'Windows (cmd/powershell)' : 'Unix/Linux (sh/bash)'}`,
+    `Note: Always use platform-compatible shell commands. On Windows, DO NOT use 'mv', 'rm', or 'cp' in shell executions; use 'move', 'del', or 'copy' (or PowerShell equivalents). Prefer utilizing the structured file tools over shell commands for basic file changes.`,
+  ];
+
+  if (context) {
+    instructions.push(
+      "",
+      "Below is the current codebase context retrieved from the user's workspace:",
+      context
+    );
+  }
+
   return {
     model: getAgentModel(),
     stopWhen: stepCountIs(maxSteps),
-    instructions: [
-      `Workspace root: ${config.codebasePath}`,
-      `OS Environment: ${process.platform === 'win32' ? 'Windows (cmd/powershell)' : 'Unix/Linux (sh/bash)'}`,
-      `Note: Always use platform-compatible shell commands. On Windows, DO NOT use 'mv', 'rm', or 'cp' in shell executions; use 'move', 'del', or 'copy' (or PowerShell equivalents). Prefer utilizing the structured file tools over shell commands for basic file changes.`,
-    ].join("\n"),
+    instructions: instructions.join("\n"),
   };
 }
 
@@ -72,12 +84,14 @@ function extraWebTools(tracker: ActionTracker) {
 
 
 export async function runAsk(ctx:{reply:(t:string , o?:object)=>Promise<unknown>} , question:string){
-     const config = readOnlyConfig();
+  const config = readOnlyConfig();
   const tracker = new ActionTracker();
   const executor = new ToolExecutor(tracker, config);
+  const { getCodebaseContext } = await import("../agent/rag-engine.ts");
+  const context = await getCodebaseContext(config, question.trim(), executor);
   const tools = { ...createReadOnlyTools(executor), ...extraWebTools(tracker) };
   const agent = new ToolLoopAgent({
-    ...agentOptions(config, 20),
+    ...agentOptions(config, 20, context),
     tools,
   });
 
@@ -89,9 +103,11 @@ export async function runAgent(ctx: { reply: (t: string, o?: object) => Promise<
   const config = defaultAgentConfig();
   const tracker = new ActionTracker();
   const executor = new ToolExecutor(tracker, config);
+  const { getCodebaseContext } = await import("../agent/rag-engine.ts");
+  const context = await getCodebaseContext(config, goal.trim(), executor);
   const tools = createAgentTools(executor);
   const agent = new ToolLoopAgent({
-    ...agentOptions(config, 40),
+    ...agentOptions(config, 40, context),
     tools,
   });
   const { text } = await agent.generate({ prompt: goal });
@@ -108,13 +124,15 @@ export async function runPlanSteps(
   const config = defaultAgentConfig();
   const tracker = new ActionTracker();
   const executor = new ToolExecutor(tracker, config);
+  const { getCodebaseContext } = await import("../agent/rag-engine.ts");
+  const context = await getCodebaseContext(config, plan.goal.trim(), executor);
   const tools = { ...createAgentTools(executor), ...extraWebTools(tracker) };
 
   for (const step of steps) {
     await ctx.reply(`🔧 Executing: *${step.title}*`, { parse_mode: 'Markdown' });
     const prompt = [`Goal: ${plan.goal}`, `Step: ${step.title}`, step.description].join('\n');
     const agent = new ToolLoopAgent({
-      ...agentOptions(config, 30),
+      ...agentOptions(config, 30, context),
       tools,
     });
     const { text } = await agent.generate({ prompt });

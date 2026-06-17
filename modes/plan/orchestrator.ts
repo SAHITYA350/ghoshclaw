@@ -48,6 +48,12 @@ export async function runPlanMode(): Promise<void> {
     ...createWebTools(tracker)
   };
 
+  const { createSpinner } = await import("nanospinner");
+  const ragSpinner = createSpinner("Scanning & indexing codebase context...").start();
+  const { getCodebaseContext } = await import("../agent/rag-engine");
+  const context = await getCodebaseContext(config, goal.trim(), executor);
+  ragSpinner.success({ text: "Codebase context indexed." });
+
   for (const step of selected) {
     console.log(chalk.bold(`\n🔧 ${step.title}\n`));
 
@@ -55,16 +61,21 @@ export async function runPlanMode(): Promise<void> {
       model:getAgentModel(),
       stopWhen:stepCountIs(30),
       instructions: [
+        "You are Ghoshclaw, a private, local AI development co-pilot agent.",
+        "Always identify yourself as Ghoshclaw.",
         `Workspace root: ${config.codebasePath}`,
         `OS Environment: ${process.platform === 'win32' ? 'Windows (cmd/powershell)' : 'Unix/Linux (sh/bash)'}`,
         `Note: Always use platform-compatible shell commands. On Windows, DO NOT use 'mv', 'rm', or 'cp' in shell executions; use 'move', 'del', or 'copy' (or PowerShell equivalents). Prefer utilizing the structured file tools over shell commands for basic file changes.`,
+        "",
+        "Below is the current codebase context retrieved from the user's workspace:",
+        context
       ].join("\n"),
       tools
     });
 
     const r = await agent.generate({prompt:stepPrompt(plan.goal , step)})
 
-    if(r.text) return console.log(renderTerminalMarkdown(r.text))
+    if(r.text) console.log(renderTerminalMarkdown(r.text))
 
   }
 

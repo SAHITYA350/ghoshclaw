@@ -37,3 +37,7 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 *.txt
 .txt
 
+# RAG caches
+rag-cache.json
+rag-cache-*.json
+

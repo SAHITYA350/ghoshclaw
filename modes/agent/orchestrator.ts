@@ -25,14 +25,25 @@ export async function runAgentMode() {
   const executor = new ToolExecutor(tracker, config);
   const tools = createAgentTools(executor);
 
+  const { createSpinner } = await import("nanospinner");
+  const ragSpinner = createSpinner("Scanning & indexing codebase context...").start();
+  const { getCodebaseContext } = await import("./rag-engine");
+  const context = await getCodebaseContext(config, goal.trim(), executor);
+  ragSpinner.success({ text: "Codebase context indexed." });
+
   const agent = new ToolLoopAgent({
     model: getAgentModel(),
     stopWhen: stepCountIs(40),
     instructions: [
+      "You are Ghoshclaw, a private, local AI development co-pilot agent.",
+      "Always identify yourself as Ghoshclaw.",
       `Workspace root: ${config.codebasePath}`,
       `OS Environment: ${process.platform === 'win32' ? 'Windows (cmd/powershell)' : 'Unix/Linux (sh/bash)'}`,
       `Note: Always use platform-compatible shell commands. On Windows, DO NOT use 'mv', 'rm', or 'cp' in shell executions; use 'move', 'del', or 'copy' (or PowerShell equivalents). Prefer utilizing the structured file tools over shell commands for basic file changes.`,
       "All mutations are staged until approval.",
+      "",
+      "Below is the current codebase context retrieved from the user's workspace:",
+      context
     ].join("\n"),
     tools,
   });

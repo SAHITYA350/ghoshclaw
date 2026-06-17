@@ -14,21 +14,17 @@ import { runInitCommand } from "./init";
 figlet.parseFont("ANSI Shadow", ansiShadow);
 
 async function ensureCredentials(): Promise<boolean> {
-  const hasGroq = !!process.env.GROQ_API_KEY;
-  const hasOpenRouter = !!process.env.OPENROUTER_API_KEY;
-  const hasModel = !!process.env.OPENROUTER_DEFAULT_MODEL;
+  const hasGroq = !!process.env.GROQ_API_KEY && process.env.GROQ_API_KEY.trim() !== "";
+  const hasOpenRouter = !!process.env.OPENROUTER_API_KEY && process.env.OPENROUTER_API_KEY.trim() !== "";
 
-  if (hasGroq && hasOpenRouter && hasModel) {
+  if (hasGroq || hasOpenRouter) {
     return true;
   }
 
-  console.log(chalk.bold.yellow("\n⚠️  Missing API Credentials!\n"));
-  console.log(chalk.gray("To use Ghoshclaw, you need to configure your API keys (Groq & OpenRouter)."));
-  console.log(chalk.gray("Currently missing:"));
-  if (!hasGroq) console.log(chalk.red("  • GROQ_API_KEY"));
-  if (!hasOpenRouter) console.log(chalk.red("  • OPENROUTER_API_KEY"));
-  if (!hasModel) console.log(chalk.red("  • OPENROUTER_DEFAULT_MODEL"));
-  console.log();
+  console.log(chalk.bold.red("\n❌ GhoshClaw is not configured.\n"));
+  console.log(chalk.gray("Run:"));
+  console.log(chalk.cyan("    ghoshclaw init\n"));
+  console.log(chalk.gray("Your API keys will be stored locally on this computer and will not be shared with the developer.\n"));
 
   const runSetup = await confirm({
     message: "Would you like to run the onboarding configuration wizard now?",
@@ -36,18 +32,17 @@ async function ensureCredentials(): Promise<boolean> {
   });
 
   if (isCancel(runSetup) || !runSetup) {
-    console.log(chalk.red("\nCannot proceed without API credentials. Exiting.\n"));
+    console.log(chalk.red("\nCannot proceed without configuration. Exiting.\n"));
     process.exit(1);
   }
 
   await runInitCommand();
   
   // Re-verify after setup
-  const finalGroq = !!process.env.GROQ_API_KEY;
-  const finalOpenRouter = !!process.env.OPENROUTER_API_KEY;
-  const finalModel = !!process.env.OPENROUTER_DEFAULT_MODEL;
+  const finalGroq = !!process.env.GROQ_API_KEY && process.env.GROQ_API_KEY.trim() !== "";
+  const finalOpenRouter = !!process.env.OPENROUTER_API_KEY && process.env.OPENROUTER_API_KEY.trim() !== "";
   
-  if (finalGroq && finalOpenRouter && finalModel) {
+  if (finalGroq || finalOpenRouter) {
     return true;
   }
   
