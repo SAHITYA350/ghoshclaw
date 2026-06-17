@@ -40,11 +40,28 @@ export class ToolExecutor {
   ) {}
 
   private resolveSafe(rel: string): string {
+    const isSystemAccess = process.env.GHOSHCLAW_SYSTEM_ACCESS === "true";
+
+    // Handle absolute paths
+    if (path.isAbsolute(rel)) {
+      if (isSystemAccess) {
+        return path.normalize(rel);
+      } else {
+        throw new Error(`Absolute paths are disabled without full system access: ${rel}`);
+      }
+    }
+
+    // Resolve relative path
     const abs = path.resolve(this.config.codebasePath, rel);
+
+    if (isSystemAccess) {
+      return abs;
+    }
+
     const root = path.resolve(this.config.codebasePath);
     const relCheck = path.relative(root, abs);
     if (relCheck.startsWith("..") || path.isAbsolute(relCheck)) {
-      throw new Error(`Path escapes workspace: ${rel}`);
+      throw new Error(`Path escapes workspace: ${rel}. Enable full system access on startup to permit this.`);
     }
     return abs;
   }

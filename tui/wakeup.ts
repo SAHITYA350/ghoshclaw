@@ -155,6 +155,24 @@ export async function runWakeup() {
 
   await ensureCredentials();
 
+  const systemAccess = await confirm({
+    message: "Do you want to grant the agent full system access for this session? (Allows editing files outside the workspace and running arbitrary system commands)",
+    initialValue: false,
+  });
+
+  if (isCancel(systemAccess)) {
+    console.log(chalk.gray("\nSession terminated.\n"));
+    process.exit(0);
+  }
+
+  process.env.GHOSHCLAW_SYSTEM_ACCESS = systemAccess ? "true" : "false";
+
+  if (systemAccess) {
+    console.log(chalk.greenBright("\n🔓 Full System Access granted. The agent can operate outside the workspace (e.g. on Desktop).\n"));
+  } else {
+    console.log(chalk.cyan("\n🛡️  Sandboxed Mode active. The agent is restricted to files inside the workspace.\n"));
+  }
+
   while (true) {
     process.stdin.resume();
 

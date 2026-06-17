@@ -1,5 +1,6 @@
-import { tool, ToolLoopAgent, stepCountIs } from "ai";
+import { tool, stepCountIs, ToolLoopAgent } from "ai";
 import { z } from "zod";
+import os from "node:os";
 import { getAgentModel } from "../../ai/ai.config.ts";
 import { ActionTracker } from "../agent/action-tracker.ts";
 import { ToolExecutor } from "../agent/tool-executor.ts";
@@ -19,14 +20,31 @@ function readOnlyConfig(): AgentConfig {
   return c;
 }
 
-function agentOptions(config: AgentConfig, maxSteps: number, context?: string) {
+function getSystemPrompt(config: AgentConfig, context?: string) {
+  const isSystemAccess = process.env.GHOSHCLAW_SYSTEM_ACCESS === "true";
+  const homePath = os.homedir();
+  const { getDesktopPath } = require("../agent/rag-engine.ts");
+  const desktopPath = getDesktopPath();
+
   const instructions = [
     "You are Ghoshclaw, a private, local AI development co-pilot agent.",
     "Always identify yourself as Ghoshclaw.",
     `Workspace root: ${config.codebasePath}`,
     `OS Environment: ${process.platform === 'win32' ? 'Windows (cmd/powershell)' : 'Unix/Linux (sh/bash)'}`,
     `Note: Always use platform-compatible shell commands. On Windows, DO NOT use 'mv', 'rm', or 'cp' in shell executions; use 'move', 'del', or 'copy' (or PowerShell equivalents). Prefer utilizing the structured file tools over shell commands for basic file changes.`,
+    "CRITICAL: You must use the tool calling functions to create folders, write files, search files, and execute shell commands. Do not write JSON blocks or code snippets in your text response if you need to execute an action. You MUST call the corresponding tool function instead.",
+    `Full System Access: ${isSystemAccess ? 'ENABLED' : 'DISABLED'}`,
   ];
+
+  if (isSystemAccess) {
+    instructions.push(
+      `You have FULL access to the user's system outside the workspace sandbox. You can write files or create folders anywhere. The user's Home Directory is: ${homePath} and Desktop is: ${desktopPath}. If the user asks to create files or folders on their Desktop or Home, use these absolute paths.`
+    );
+  } else {
+    instructions.push(
+      `You are restricted to the workspace. Do not attempt to access files outside the workspace.`
+    );
+  }
 
   if (context) {
     instructions.push(
@@ -36,11 +54,7 @@ function agentOptions(config: AgentConfig, maxSteps: number, context?: string) {
     );
   }
 
-  return {
-    model: getAgentModel(),
-    stopWhen: stepCountIs(maxSteps),
-    instructions: instructions.join("\n"),
-  };
+  return instructions.join("\n");
 }
 
 function createReadOnlyTools(executor: ToolExecutor) {
@@ -90,13 +104,16 @@ export async function runAsk(ctx:{reply:(t:string , o?:object)=>Promise<unknown>
   const { getCodebaseContext } = await import("../agent/rag-engine.ts");
   const context = await getCodebaseContext(config, question.trim(), executor);
   const tools = { ...createReadOnlyTools(executor), ...extraWebTools(tracker) };
+  
   const agent = new ToolLoopAgent({
-    ...agentOptions(config, 20, context),
+    model: getAgentModel(),
+    stopWhen: stepCountIs(20),
+    instructions: getSystemPrompt(config, context),
     tools,
   });
 
-  const {text} = await agent.generate({prompt:question});
-  await replyMd(ctx , text || ("no answer"))
+  const result = await agent.generate({ prompt: question });
+  await replyMd(ctx , result.text || ("no answer"))
 }
 
 export async function runAgent(ctx: { reply: (t: string, o?: object) => Promise<unknown> }, chatId: number, goal: string) {
@@ -106,13 +123,17 @@ export async function runAgent(ctx: { reply: (t: string, o?: object) => Promise<
   const { getCodebaseContext } = await import("../agent/rag-engine.ts");
   const context = await getCodebaseContext(config, goal.trim(), executor);
   const tools = createAgentTools(executor);
+  
   const agent = new ToolLoopAgent({
-    ...agentOptions(config, 40, context),
+    model: getAgentModel(),
+    stopWhen: stepCountIs(40),
+    instructions: getSystemPrompt(config, context),
     tools,
   });
-  const { text } = await agent.generate({ prompt: goal });
-  if (text?.trim()) await replyMd(ctx, text.trim());
- await finishOrApprove(ctx, chatId, tracker, executor, '✅ Done. No file changes were needed.');
+
+  const result = await agent.generate({ prompt: goal });
+  if (result.text?.trim()) await replyMd(ctx, result.text.trim());
+  await finishOrApprove(ctx, chatId, tracker, executor, '✅ Done. No file changes were needed.');
 }
 
 export async function runPlanSteps(
@@ -131,13 +152,17 @@ export async function runPlanSteps(
   for (const step of steps) {
     await ctx.reply(`🔧 Executing: *${step.title}*`, { parse_mode: 'Markdown' });
     const prompt = [`Goal: ${plan.goal}`, `Step: ${step.title}`, step.description].join('\n');
+    
     const agent = new ToolLoopAgent({
-      ...agentOptions(config, 30, context),
+      model: getAgentModel(),
+      stopWhen: stepCountIs(30),
+      instructions: getSystemPrompt(config, context),
       tools,
     });
-    const { text } = await agent.generate({ prompt });
-    if (text?.trim()) await replyMd(ctx, text.trim());
+
+    const result = await agent.generate({ prompt });
+    if (result.text?.trim()) await replyMd(ctx, result.text.trim());
   }
 
- await finishOrApprove(ctx, chatId, tracker, executor, '✅ All steps done. No file changes needed.');
+  await finishOrApprove(ctx, chatId, tracker, executor, '✅ All steps done. No file changes needed.');
 }

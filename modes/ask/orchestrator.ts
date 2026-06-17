@@ -1,6 +1,7 @@
 import chalk from "chalk";
 import { confirm, isCancel, text } from "@clack/prompts";
-import { ToolLoopAgent, stepCountIs, tool } from "ai";
+import os from "node:os";
+import { stepCountIs, ToolLoopAgent, tool } from "ai";
 import { z } from "zod";
 import { getAgentModel } from "../../ai/ai.config.ts";
 import { ActionTracker } from "../agent/action-tracker.ts";
@@ -99,10 +100,22 @@ export async function runAskMode() {
   const semanticSnippets = rag.retrieve(question.trim(), 8);
   ragSpinner.success({ text: "Codebase context indexed." });
 
+  const isSystemAccess = process.env.GHOSHCLAW_SYSTEM_ACCESS === "true";
+  const { getDesktopPath } = await import("../agent/rag-engine.ts");
+  const homePath = os.homedir();
+  const desktopPath = getDesktopPath();
+
   const systemPrompt = [
     "You are Ghoshclaw, a private, local AI development co-pilot agent.",
+    "Always identify yourself as Ghoshclaw.",
     "Your goal is to answer the user's questions about their codebase and development tasks.",
-    "Be direct, concise, and helpful. Always identify yourself as Ghoshclaw.",
+    "Be direct, concise, and helpful.",
+    `Workspace root: ${config.codebasePath}`,
+    `OS Environment: ${process.platform === 'win32' ? 'Windows (cmd/powershell)' : 'Unix/Linux (sh/bash)'}`,
+    `Full System Access: ${isSystemAccess ? 'ENABLED' : 'DISABLED'}`,
+    isSystemAccess
+      ? `You have FULL access to the user's system outside the workspace sandbox. The user's Home Directory is: ${homePath} and Desktop is: ${desktopPath}. If the user asks about files/folders on their Desktop/Home or wants to perform system tasks, use these paths.`
+      : `You are restricted to the workspace sandbox.`,
     "",
     "Here is the context retrieved from the user's local codebase:",
     "--------------------------------------------------",
@@ -117,15 +130,17 @@ export async function runAskMode() {
     ...createWebTools(tracker)
   };
 
+  const generateSpinner = createSpinner("Ghoshclaw is thinking...").start();
+
   const agent = new ToolLoopAgent({
     model: getAgentModel(),
     stopWhen: stepCountIs(20),
-    tools,
     instructions: systemPrompt,
+    tools,
   });
 
-  const generateSpinner = createSpinner("Ghoshclaw is thinking...").start();
   const result = await agent.generate({ prompt: question.trim() });
+  
   generateSpinner.success({ text: "Answer ready." });
 
   const answer = result.text?.trim() || "(no answer)";

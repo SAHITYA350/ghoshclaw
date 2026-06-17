@@ -379,3 +379,19 @@ export async function getCodebaseContext(
   }
 }
 
+export function getDesktopPath(): string {
+  const home = os.homedir();
+  const paths = [
+    path.join(home, "Desktop"),
+    path.join(home, "OneDrive", "Desktop"),
+    path.join(home, "onedrive", "Desktop"),
+  ];
+  for (const p of paths) {
+    try {
+      if (fs.existsSync(p)) return p;
+    } catch (e) {}
+  }
+  return path.join(home, "Desktop");
+}
+
+

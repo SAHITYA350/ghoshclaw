@@ -1,5 +1,6 @@
 import { isCancel, text } from "@clack/prompts";
 import chalk from "chalk";
+import os from "node:os";
 import { defaultAgentConfig } from "./types";
 import { ActionTracker } from "./action-tracker";
 import { ToolExecutor } from "./tool-executor";
@@ -27,24 +28,35 @@ export async function runAgentMode() {
 
   const { createSpinner } = await import("nanospinner");
   const ragSpinner = createSpinner("Scanning & indexing codebase context...").start();
-  const { getCodebaseContext } = await import("./rag-engine");
+  const { getCodebaseContext, getDesktopPath } = await import("./rag-engine");
   const context = await getCodebaseContext(config, goal.trim(), executor);
   ragSpinner.success({ text: "Codebase context indexed." });
+
+  const isSystemAccess = process.env.GHOSHCLAW_SYSTEM_ACCESS === "true";
+  const homePath = os.homedir();
+  const desktopPath = getDesktopPath();
+
+  const systemPrompt = [
+    "You are Ghoshclaw, a private, local AI development co-pilot agent.",
+    "Always identify yourself as Ghoshclaw.",
+    `Workspace root: ${config.codebasePath}`,
+    `OS Environment: ${process.platform === 'win32' ? 'Windows (cmd/powershell)' : 'Unix/Linux (sh/bash)'}`,
+    `Note: Always use platform-compatible shell commands. On Windows, DO NOT use 'mv', 'rm', or 'cp' in shell executions; use 'move', 'del', or 'copy' (or PowerShell equivalents). Prefer utilizing the structured file tools over shell commands for basic file changes.`,
+    "All mutations are staged until approval.",
+    "CRITICAL: You must use the tool calling functions to create folders, write files, search files, and execute shell commands. Do not write JSON blocks or code snippets in your text response if you need to execute an action. You MUST call the corresponding tool function instead.",
+    `Full System Access: ${isSystemAccess ? 'ENABLED' : 'DISABLED'}`,
+    isSystemAccess
+      ? `You have FULL access to the user's system outside the workspace sandbox. You can write files or create folders anywhere. The user's Home Directory is: ${homePath} and Desktop is: ${desktopPath}. If the user asks to create files or folders on their Desktop or Home, use these absolute paths.`
+      : `You are restricted to the workspace. Do not attempt to access files outside the workspace.`,
+    "",
+    "Below is the current codebase context retrieved from the user's workspace:",
+    context
+  ].join("\n");
 
   const agent = new ToolLoopAgent({
     model: getAgentModel(),
     stopWhen: stepCountIs(40),
-    instructions: [
-      "You are Ghoshclaw, a private, local AI development co-pilot agent.",
-      "Always identify yourself as Ghoshclaw.",
-      `Workspace root: ${config.codebasePath}`,
-      `OS Environment: ${process.platform === 'win32' ? 'Windows (cmd/powershell)' : 'Unix/Linux (sh/bash)'}`,
-      `Note: Always use platform-compatible shell commands. On Windows, DO NOT use 'mv', 'rm', or 'cp' in shell executions; use 'move', 'del', or 'copy' (or PowerShell equivalents). Prefer utilizing the structured file tools over shell commands for basic file changes.`,
-      "All mutations are staged until approval.",
-      "",
-      "Below is the current codebase context retrieved from the user's workspace:",
-      context
-    ].join("\n"),
+    instructions: systemPrompt,
     tools,
   });
 
